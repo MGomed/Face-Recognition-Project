@@ -1,5 +1,36 @@
 # Face-Recognition-Project
 
+## Структура проекта
+
+```
+Face-Recognition-Project/
+├── face_detection/         # Модуль детекции лиц
+│   ├── requirements.txt
+│   ├── README.md
+│   └── src/
+│       ├── detector.py     # MTCNN детектор
+│       └── app.py          # Gradio Web UI
+├── notebooks/              # Jupyter notebooks
+└── Project/                # Другие модули
+```
+
+## Face Detection
+
+Модуль детекции лиц находится в папке `face_detection/`. 
+
+**Быстрый старт:**
+```bash
+cd face_detection
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m src.app
+```
+
+Откройте http://localhost:7860 в браузере.
+
+---
+
 ## Отбор и фильтрация изображений
 
 #### Загрузка и анализ данных
