@@ -1,5 +1,6 @@
-from typing import List, Optional, Tuple, Union, Dict, Any
+from typing import List, Optional, Tuple, Union, Dict, Any, TYPE_CHECKING
 from dataclasses import dataclass
+from pathlib import Path
 import os
 
 import numpy as np
@@ -8,6 +9,10 @@ import torch
 
 from .detector import FaceDetector
 from .landmark_model import LandmarkPredictor
+from .config import load_config
+
+if TYPE_CHECKING:
+    from .config import Config
 
 
 @dataclass
@@ -109,6 +114,32 @@ class FaceProcessor:
         print(f"FaceProcessor initialized on {self.device}")
         print(f"  - Face detection: enabled")
         print(f"  - Landmark prediction: {'enabled' if self._has_landmarks else 'disabled'}")
+    
+    @classmethod
+    def from_config(
+        cls, 
+        config_path: Optional[Union[str, Path]] = None,
+        override: Optional[Dict[str, Any]] = None
+    ) -> 'FaceProcessor':        
+        config = load_config(config_path, override)
+        
+        return cls(
+            checkpoint_path=config.get_landmark_model_path(),
+            output_size=config.detector.output_size,
+            margin=config.detector.margin,
+            device=config.device,
+            confidence_threshold=config.detector.confidence_threshold
+        )
+    
+    @classmethod
+    def from_config_object(cls, config: 'Config') -> 'FaceProcessor':
+        return cls(
+            checkpoint_path=config.get_landmark_model_path(),
+            output_size=config.detector.output_size,
+            margin=config.detector.margin,
+            device=config.device,
+            confidence_threshold=config.detector.confidence_threshold
+        )
     
     @property
     def has_landmarks(self) -> bool:

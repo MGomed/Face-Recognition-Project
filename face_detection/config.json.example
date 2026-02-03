@@ -1,0 +1,7 @@
+{
+  "models": {
+    "landmark_model": "path/to/your/landmark_model.pth",
+    "face_recognition_model": "path/to/your/face_recognition_model.pth"
+  },
+  "device": "cuda"
+}

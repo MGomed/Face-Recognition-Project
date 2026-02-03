@@ -1,111 +1,120 @@
-# Face Detection & Landmark Prediction Module
+# Face Detection Module
 
-Модуль детекции лиц и предсказания ключевых точек для Face Recognition pipeline.
-
-## Возможности
-
-1. **Face Detection (MTCNN)** — детектирует лица на изображении и вырезает их 128x128
-2. **Landmark Prediction (Stacked Hourglass)** — предсказывает 5 ключевых точек на каждом лице:
-   - Left Eye (красный)
-   - Right Eye (синий)  
-   - Nose (зелёный)
-   - Left Mouth (жёлтый)
-   - Right Mouth (пурпурный)
+Модуль детекции лиц, предсказания ключевых точек и выравнивания для Face Recognition pipeline.
 
 ## Установка
 
 ```bash
-cd face_detection
-
-# Создание виртуального окружения
-python3 -m venv venv
-source venv/bin/activate  # Linux/macOS
-
-# Установка зависимостей
 pip install -r requirements.txt
 ```
 
-## Checkpoint
+## Конфигурация
 
-Убедитесь, что файл `best_hourglass_model.pth` находится в **корне проекта** (на уровне выше папки `face_detection`):
+Создайте `config.json` с путями к моделям:
 
-```
-Face-Recognition-Project/
-├── best_hourglass_model.pth   <-- checkpoint здесь
-├── face_detection/
-│   └── ...
-└── ...
-```
-
-## Запуск Web UI
-
-```bash
-source venv/bin/activate
-python -m src.app
+```json
+{
+  "models": {
+    "landmark_model": "hourglass_model.pth",
+    "face_recognition_model": "face_recognition_model.pth"
+  },
+  "device": "cuda"
+}
 ```
 
-Откройте браузер: http://localhost:7860
+## Быстрый старт
 
-## Использование в коде
+### Использование из конфига
 
 ```python
-from src.detector import FaceDetector
-from src.landmark_model import LandmarkPredictor
+import sys
+sys.path.append('/path/to/Face-Recognition-Project')
+
+from face_detection import FaceProcessor
+
+# Из config.json
+processor = FaceProcessor.from_config('config.json')
+
+# Или с override
+processor = FaceProcessor.from_config(override={'device': 'cpu'})
+```
+
+### Использование с явным путём
+
+```python
+from face_detection import FaceProcessor
 from PIL import Image
 
-# 1. Детекция лиц
-detector = FaceDetector(output_size=128, margin=20)
-image = Image.open("photo.jpg")
-cropped_faces, boxes, confidences = detector.detect_faces(image)
+# Инициализация
+processor = FaceProcessor(
+    checkpoint_path='hourglass_model.pth',
+    device='cuda'
+)
 
-# 2. Предсказание landmarks
-predictor = LandmarkPredictor(checkpoint_path="../best_hourglass_model.pth")
+# Загрузка изображения
+image = Image.open('photo.jpg')
 
-for i, face in enumerate(cropped_faces):
-    # face уже 128x128
-    heatmaps, keypoints = predictor.predict(face)
-    
-    # keypoints = [(x1, y1), (x2, y2), (x3, y3), (x4, y4), (x5, y5)]
-    # Порядок: left_eye, right_eye, nose, left_mouth, right_mouth
-    
-    # Нарисовать landmarks на изображении
-    face_with_landmarks = predictor.draw_landmarks(face, keypoints)
-    face_with_landmarks.save(f"face_{i}_landmarks.jpg")
+# Полная обработка: детекция + landmarks + alignment
+result = processor.process(image)
+
+print(f"Найдено лиц: {result.num_faces}")
+
+# Получить выровненные лица для face recognition
+aligned_faces = result.get_aligned_faces()
+```
+
+### Отдельные методы
+
+```python
+# Только детекция лиц
+faces, boxes, confidences = processor.detect_faces(image)
+
+# Только предсказание landmarks
+heatmaps, keypoints = processor.predict_landmarks(face_image)
+
+# Только выравнивание
+aligned, orig_landmarks, aligned_landmarks = processor.align_face(face_image)
+
+# Рисование landmarks
+face_with_landmarks = processor.draw_landmarks(face_image, landmarks)
+```
+
+### Получение лиц для Face Recognition
+
+```python
+# Удобный метод для получения выровненных лиц
+aligned_faces = processor.get_embeddings_ready_faces(image)
+```
+
+## Environment Variables
+
+```bash
+export FACE_DETECTION_LANDMARK_MODEL=/path/to/model.pth
+export FACE_DETECTION_FACE_RECOGNITION_MODEL=/path/to/model.pth
+export FACE_DETECTION_DEVICE=cuda
 ```
 
 ## Структура проекта
 
 ```
 face_detection/
-├── requirements.txt        # Зависимости
-├── README.md               # Документация
+├── __init__.py
+├── config.json          # Пути к моделям
+├── README.md
+├── requirements.txt
 └── src/
-    ├── __init__.py         # Экспорт модулей
-    ├── detector.py         # MTCNN детектор лиц
-    ├── landmark_model.py   # Stacked Hourglass для landmarks
-    └── app.py              # Gradio Web UI
+    ├── __init__.py
+    ├── config.py        # Загрузка конфига
+    ├── processor.py     # FaceProcessor
+    ├── detector.py      # FaceDetector (MTCNN)
+    ├── landmark_model.py # Stacked Hourglass Network
+    └── app.py           # Gradio Web UI
 ```
 
-## API
+## Технические детали
 
-### FaceDetector
-
-```python
-class FaceDetector:
-    def __init__(self, output_size: int = 128, margin: int = 20, device: str = None)
-    
-    def detect_faces(self, image: Image) -> Tuple[List[Image], List[List[float]], List[float]]
-    def detect_and_draw(self, image: Image) -> Tuple[Image, List[Image]]
-```
-
-### LandmarkPredictor
-
-```python
-class LandmarkPredictor:
-    KEYPOINT_NAMES = ['Left Eye', 'Right Eye', 'Nose', 'Left Mouth', 'Right Mouth']
-    
-    def __init__(self, checkpoint_path: str = None, device: str = None)
-    
-    def predict(self, image: Image) -> Tuple[np.ndarray, List[Tuple[int, int]]]
-    def draw_landmarks(self, image: Image, keypoints: List) -> Image
-```
+- **Face Detector**: MTCNN (facenet-pytorch)
+- **Landmark Model**: Stacked Hourglass Network (3 stacks, 4 depth, 128 features)
+- **Output Size**: 128x128 pixels
+- **Landmarks**: 5 points (left eye, right eye, nose, left mouth, right mouth)
+- **Aligned Eye Positions**: (38, 48) и (90, 48)
