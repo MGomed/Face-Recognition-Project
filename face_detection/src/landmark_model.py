@@ -9,6 +9,9 @@ import cv2
 KEYPOINT_NAMES = ['Left Eye', 'Right Eye', 'Nose', 'Left Mouth', 'Right Mouth']
 KEYPOINT_COLORS = [(255, 0, 0), (0, 0, 255), (0, 255, 0), (255, 255, 0), (255, 0, 255)]
 
+ALIGNED_LEFT_EYE = (38, 48)
+ALIGNED_RIGHT_EYE = (90, 48)
+
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -316,8 +319,8 @@ class LandmarkPredictor:
         
         # Желаемые позиции ключевых точек в выровненном изображении
         # Стандартные позиции для выровненного лица 128x128
-        desired_left_eye = (38, 48)
-        desired_right_eye = (90, 48)
+        desired_left_eye = ALIGNED_LEFT_EYE
+        desired_right_eye = ALIGNED_RIGHT_EYE
 
         desired_dist = desired_right_eye[0] - desired_left_eye[0]
         actual_dist = np.linalg.norm(right_eye - left_eye)
