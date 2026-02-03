@@ -1,18 +1,13 @@
-"""
-Stacked Hourglass Network for Face Landmark Detection
-Detects 5 keypoints: left eye, right eye, nose, left mouth corner, right mouth corner
-"""
-
 from typing import List, Tuple, Optional
 import torch
 import torch.nn as nn
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from torchvision import transforms
 import cv2
 
-
-# ============== Residual Block ==============
+KEYPOINT_NAMES = ['Left Eye', 'Right Eye', 'Nose', 'Left Mouth', 'Right Mouth']
+KEYPOINT_COLORS = [(255, 0, 0), (0, 0, 255), (0, 255, 0), (255, 255, 0), (255, 0, 255)]
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -30,17 +25,15 @@ class ResidualBlock(nn.Module):
 
     def forward(self, x):
         residual = self.skip(x)
+
         x = self.relu(self.bn1(self.conv1(x)))
         x = self.relu(self.bn2(self.conv2(x)))
         x = self.bn3(self.conv3(x))
+
         return self.relu(x + residual)
 
 
-# ============== Hourglass Module ==============
-
-class HourglassModule(nn.Module):
-    """Hourglass Module с необучаемыми слоями для down/upsampling (MaxPool + Upsample)"""
-    
+class HourglassModule(nn.Module):    
     def __init__(self, depth, num_features):
         """
         Args:
@@ -95,14 +88,7 @@ class HourglassModule(nn.Module):
         return up + low
 
 
-# ============== Stacked Hourglass Network ==============
-
 class StackedHourglassNetwork(nn.Module):
-    """
-    Stacked Hourglass Network для детекции ключевых точек лица.
-    Использует intermediate supervision через heatmaps на каждом стеке.
-    """
-    
     def __init__(self, num_stacks, num_blocks, num_features, num_keypoints, input_channels=3):
         """
         Args:
@@ -111,7 +97,6 @@ class StackedHourglassNetwork(nn.Module):
             num_features: количество каналов в hourglass модулях
             num_keypoints: количество ключевых точек (размер heatmap)
             input_channels: количество входных каналов (обычно 3 для RGB)
-            hourglass_type: 'non_learnable' или 'learnable' для типа down/upsampling
         """
         super().__init__()
         self.num_stacks = num_stacks
@@ -203,14 +188,7 @@ class StackedHourglassNetwork(nn.Module):
         return heatmaps
 
 
-# ============== Landmark Predictor ==============
-
-class LandmarkPredictor:
-    """Класс для предсказания ключевых точек лица"""
-    
-    KEYPOINT_NAMES = ['Left Eye', 'Right Eye', 'Nose', 'Left Mouth', 'Right Mouth']
-    KEYPOINT_COLORS = [(255, 0, 0), (0, 0, 255), (0, 255, 0), (255, 255, 0), (255, 0, 255)]
-    
+class LandmarkPredictor:    
     def __init__(self, checkpoint_path: Optional[str] = None, device: Optional[str] = None):
         """
         Args:
@@ -242,19 +220,14 @@ class LandmarkPredictor:
             transforms.Resize((128, 128)),
             transforms.ToTensor(),
         ])
-        
-        print(f"Landmark predictor initialized on device: {self.device}")
     
     def _load_checkpoint(self, checkpoint_path: str):
-        """Загружает веса модели из checkpoint"""
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
+
         self.model.load_state_dict(checkpoint['model_state_dict'])
-        print(f"Model loaded from {checkpoint_path}")
     
     def predict(self, image: Image.Image) -> Tuple[np.ndarray, List[Tuple[int, int]]]:
-        """
-        Предсказывает ключевые точки на изображении
-        
+        """        
         Args:
             image: PIL Image (должно быть уже 128x128 после детектора)
         
@@ -262,53 +235,44 @@ class LandmarkPredictor:
             heatmaps: numpy array [num_keypoints, H, W]
             keypoints: список координат [(x, y), ...]
         """
-        # Конвертируем в RGB если нужно
         if image.mode != 'RGB':
             image = image.convert('RGB')
-        
-        # Предобработка
+
         img_tensor = self.transform(image).unsqueeze(0).to(self.device)
         
-        # Предсказание
         with torch.no_grad():
             pred_heatmaps = self.model(img_tensor)
-            # Берем последний стек
-            heatmap = pred_heatmaps[-1][0]  # [num_keypoints, H, W]
-        
-        # Переводим в numpy
+            heatmap = pred_heatmaps[-1][0]
+
         heatmap_np = heatmap.cpu().numpy()
-        
-        # Извлекаем координаты ключевых точек
+
         keypoints = self._extract_keypoints(heatmap_np)
         
         return heatmap_np, keypoints
     
     def _extract_keypoints(self, heatmaps: np.ndarray) -> List[Tuple[int, int]]:
-        """
-        Извлекает координаты ключевых точек из heatmaps
-        
+        """        
         Args:
             heatmaps: [num_keypoints, H, W]
         
         Returns:
-            list of (x, y) coordinates
+            список координат (x, y)
         """
         num_keypoints = heatmaps.shape[0]
         keypoints = []
         
         for k in range(num_keypoints):
             heatmap = heatmaps[k]
-            # Находим максимум
+
             max_idx = np.argmax(heatmap)
             y, x = np.unravel_index(max_idx, heatmap.shape)
+
             keypoints.append((int(x), int(y)))
         
         return keypoints
     
     def draw_landmarks(self, image: Image.Image, keypoints: List[Tuple[int, int]]) -> Image.Image:
-        """
-        Рисует ключевые точки на изображении
-        
+        """        
         Args:
             image: PIL Image
             keypoints: список координат [(x, y), ...]
@@ -316,16 +280,11 @@ class LandmarkPredictor:
         Returns:
             PIL Image с нарисованными точками
         """
-        from PIL import ImageDraw
-        
-        # Копируем изображение
         img_with_landmarks = image.copy()
         draw = ImageDraw.Draw(img_with_landmarks)
         
-        # Рисуем каждую точку
         for i, (x, y) in enumerate(keypoints):
             color = self.KEYPOINT_COLORS[i % len(self.KEYPOINT_COLORS)]
-            # Рисуем кружок
             radius = 3
             draw.ellipse(
                 [x - radius, y - radius, x + radius, y + radius],
@@ -337,9 +296,7 @@ class LandmarkPredictor:
         return img_with_landmarks
     
     def compute_affine_transform(self, keypoints: List[Tuple[int, int]], output_size: Tuple[int, int] = (128, 128)) -> np.ndarray:
-        """
-        Вычисляет афинное преобразование для выравнивания лица
-        
+        """        
         Args:
             keypoints: list of (x, y) - должны быть в порядке:
                       [left_eye, right_eye, nose, left_mouth, right_mouth]
@@ -350,11 +307,9 @@ class LandmarkPredictor:
         """
         left_eye = np.array(keypoints[0], dtype=np.float32)
         right_eye = np.array(keypoints[1], dtype=np.float32)
-        
-        # Центр между глазами
+
         eyes_center = (left_eye + right_eye) / 2.0
-        
-        # Вычисляем угол поворота
+
         dY = right_eye[1] - left_eye[1]
         dX = right_eye[0] - left_eye[0]
         angle = np.degrees(np.arctan2(dY, dX))
@@ -363,8 +318,7 @@ class LandmarkPredictor:
         # Стандартные позиции для выровненного лица 128x128
         desired_left_eye = (38, 48)
         desired_right_eye = (90, 48)
-        
-        # Вычисляем масштаб
+
         desired_dist = desired_right_eye[0] - desired_left_eye[0]
         actual_dist = np.linalg.norm(right_eye - left_eye)
         
@@ -372,21 +326,18 @@ class LandmarkPredictor:
             scale = 1.0
         else:
             scale = desired_dist / actual_dist
-        
-        # Желаемый центр глаз
+
         desired_eyes_center = (
             (desired_left_eye[0] + desired_right_eye[0]) / 2,
             (desired_left_eye[1] + desired_right_eye[1]) / 2
         )
-        
-        # Получаем матрицу афинного преобразования
+
         M = cv2.getRotationMatrix2D(
             center=(float(eyes_center[0]), float(eyes_center[1])),
             angle=float(angle),
             scale=float(scale)
         )
-        
-        # Добавляем сдвиг для центрирования
+
         tX = desired_eyes_center[0] - eyes_center[0]
         tY = desired_eyes_center[1] - eyes_center[1]
         M[0, 2] += tX
@@ -395,24 +346,19 @@ class LandmarkPredictor:
         return M
     
     def align_face(self, image: Image.Image, keypoints: List[Tuple[int, int]], output_size: Tuple[int, int] = (128, 128)) -> Image.Image:
-        """
-        Выравнивает лицо с помощью афинного преобразования
-        
+        """        
         Args:
             image: PIL Image
-            keypoints: list of (x, y) координат
+            keypoints: список координат (x, y)
             output_size: размер выходного изображения (width, height)
         
         Returns:
             aligned: выровненное PIL Image
         """
-        # Конвертируем PIL Image в numpy array
         img_array = np.array(image)
-        
-        # Вычисляем матрицу преобразования
+
         M = self.compute_affine_transform(keypoints, output_size)
-        
-        # Применяем преобразование
+
         aligned = cv2.warpAffine(
             img_array,
             M,
@@ -425,8 +371,6 @@ class LandmarkPredictor:
     
     def transform_keypoints(self, keypoints: List[Tuple[int, int]], M: np.ndarray) -> List[Tuple[int, int]]:
         """
-        Трансформирует ключевые точки с помощью афинной матрицы
-        
         Args:
             keypoints: список координат [(x, y), ...]
             M: матрица афинного преобразования 2x3
@@ -436,29 +380,24 @@ class LandmarkPredictor:
         """
         transformed = []
         for (x, y) in keypoints:
-            # Применяем афинное преобразование: [x', y'] = M @ [x, y, 1]^T
             new_x = M[0, 0] * x + M[0, 1] * y + M[0, 2]
             new_y = M[1, 0] * x + M[1, 1] * y + M[1, 2]
             transformed.append((int(round(new_x)), int(round(new_y))))
+
         return transformed
     
     def align_and_predict(self, image: Image.Image) -> Tuple[Image.Image, List[Tuple[int, int]], List[Tuple[int, int]]]:
-        """
-        Выравнивает лицо и трансформирует ключевые точки
-        
+        """        
         Args:
             image: PIL Image (128x128)
         
         Returns:
             tuple: (aligned_image, original_keypoints, transformed_keypoints)
         """
-        # Сначала предсказываем ключевые точки на оригинальном изображении
         _, original_keypoints = self.predict(image)
-        
-        # Вычисляем матрицу афинного преобразования
+
         M = self.compute_affine_transform(original_keypoints)
-        
-        # Выравниваем лицо
+
         img_array = np.array(image)
         aligned_array = cv2.warpAffine(
             img_array,
@@ -468,20 +407,19 @@ class LandmarkPredictor:
             borderMode=cv2.BORDER_REPLICATE
         )
         aligned_image = Image.fromarray(aligned_array)
-        
-        # Трансформируем ключевые точки тем же преобразованием
+
         transformed_keypoints = self.transform_keypoints(original_keypoints, M)
         
         return aligned_image, original_keypoints, transformed_keypoints
 
 
-# Global predictor instance (lazy initialization)
 _landmark_predictor: Optional[LandmarkPredictor] = None
 
 
 def get_landmark_predictor(checkpoint_path: Optional[str] = None) -> LandmarkPredictor:
-    """Get or create the global landmark predictor instance."""
     global _landmark_predictor
+
     if _landmark_predictor is None:
         _landmark_predictor = LandmarkPredictor(checkpoint_path=checkpoint_path)
+
     return _landmark_predictor
