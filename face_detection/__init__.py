@@ -1,7 +1,12 @@
 """
-Face Detection Package
+Face Detection and Recognition Package
 
-Provides face detection, landmark prediction, and face alignment.
+Provides:
+    - Face detection
+    - Landmark prediction
+    - Face alignment
+    - Face recognition (embedding extraction)
+    - Face database (similarity search)
 
 Usage:
     from face_detection import FaceProcessor
@@ -9,12 +14,11 @@ Usage:
     # From config
     processor = FaceProcessor.from_config('config.json')
     
-    # Or explicit
-    processor = FaceProcessor(checkpoint_path='model.pth')
+    # Add faces to database
+    processor.add_image_to_database('photo.jpg')
     
-    # Process
-    result = processor.process(image)
-    aligned_faces = result.get_aligned_faces()
+    # Find similar faces
+    matches = processor.find_similar_faces(query_image)
 """
 
 from .src import (
@@ -22,6 +26,10 @@ from .src import (
     FaceProcessor,
     FaceResult,
     ProcessingResult,
+    
+    # Database
+    FaceDatabase,
+    SearchResult,
     
     # Configuration
     Config,
@@ -42,6 +50,10 @@ from .src import (
     ResidualBlock,
     get_landmark_predictor,
     
+    # Recognition
+    FaceRecognitionModel,
+    ArcFaceLoss,
+    
     # Web UI
     create_demo,
     run_webui,
@@ -52,6 +64,10 @@ __all__ = [
     'FaceProcessor',
     'FaceResult',
     'ProcessingResult',
+    
+    # Database
+    'FaceDatabase',
+    'SearchResult',
     
     # Configuration
     'Config',
@@ -71,6 +87,10 @@ __all__ = [
     'HourglassModule',
     'ResidualBlock',
     'get_landmark_predictor',
+    
+    # Recognition
+    'FaceRecognitionModel',
+    'ArcFaceLoss',
     
     # Web UI
     'create_demo',

@@ -287,7 +287,7 @@ class LandmarkPredictor:
         draw = ImageDraw.Draw(img_with_landmarks)
         
         for i, (x, y) in enumerate(keypoints):
-            color = self.KEYPOINT_COLORS[i % len(self.KEYPOINT_COLORS)]
+            color = KEYPOINT_COLORS[i % len(KEYPOINT_COLORS)]
             radius = 3
             draw.ellipse(
                 [x - radius, y - radius, x + radius, y + radius],

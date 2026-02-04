@@ -1,7 +1,13 @@
 {
   "models": {
-    "landmark_model": "path/to/your/landmark_model.pth",
-    "face_recognition_model": "path/to/your/face_recognition_model.pth"
+    "landmark_model": "path/to/hourglass_model.pth",
+    "face_recognition_model": "path/to/face_recognition_model.pth"
+  },
+  "database": {
+    "embeddings_cache": "embeddings.pkl",
+    "images_directory": "path/to/aligned_faces",
+    "auto_save": true,
+    "auto_load": true
   },
   "device": "cuda"
 }
