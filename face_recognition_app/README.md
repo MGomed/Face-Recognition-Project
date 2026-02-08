@@ -1,148 +1,75 @@
-# Face Detection Module
+# Face Recognition App
 
+Проект представляет из себя приложение написанное на Python с использованием Gradio и весов ранее обученных моделей. Основной функционал - это реализация пайплайна из третьей части задания:
+- детекция лиц на фотографии;
+- обнаружение ключевых точек на лице;
+- выравнивание фотографии по ключевым точкам;
+- поиск похожих лиц из заранее загруженных эмбеддингов.
 
-## Face Detection
+Хранение эмбеддингов происходит in-memory в виде кэша и подгружается при старте приложения. Для корректной работы нужно установить веса моделей и иметь директорию с уже обрезанными и выровненными фотографиями(либо иметь готовый файл с кэшом - [ссылка](https://drive.google.com/file/d/1irU_JokZ_K4o6OnQmC1jJkgsQMmIj3mk/view?usp=sharing)):
+- Веса модели для предсказания ключевых точек: [ссылка GoogleDrive](https://drive.google.com/file/d/11xe3vJEw6MXrKePLThPhVL3qc5XF0sik/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/models/magomedkurbandibirov/hourglass-10/)
+- Веса модели для получения эмбеддингов: [ссылка GoogleDrive](https://drive.google.com/file/d/1nZT0vZyEOI2aJ7T9GTcsIz2bicQTv68Q/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/models/magomedkurbandibirov/face-recognition-model)
+- Укороченный датасет с выровненными и обрезанными фотографиями среди которых будут искаться похожие лица: [ссылка GoogleDrive](https://drive.google.com/file/d/11Tb6y3DhtbRffxFuy_kXB2KrvYgBcAwp/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/datasets/magomedkurbandibirov/celeba-10k-aligned/data)
+- Можно использовать и полный датасет, но его загрузка в кэш занимает гораздо больше времени (примерно в 20 раз): [ссылка GoogleDrive](https://drive.google.com/file/d/1HYeHbGbcJhRyadSZGhn8mynBXGzFYh18/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/datasets/magomedkurbandibirov/celeba-aligned-and-cropped/data)
 
+## Структура проекта
+```
+face_recognition_app/
 │   ├── requirements.txt
-│   ├── README.md           # Более детально описание приложения
+│   ├── README.md             # Этот файл
+│   ├── config.json.example   # Файл-пример конфигурации
+│   ├── __init__.py           # Файл для python модуля
 │   └── src/
-│       ├── app.py          # Стартовая инициализация и Gradio Web UI
-│       ├── config.py       # Класс с конфигурацией всего приложения
-│       ├── database.py     # Класс для хранения эмбеддингов 
-│       ├── config.py       # Класс с конфигурацией всего приложения
-│       ├── config.py       # Класс с конфигурацией всего приложения
-│       └── recognizer.py # MTCNN детектор
-
-Модуль детекции лиц находится в папке `face_detection/`. 
+│       ├── __init__.py       # Файл для python модуля
+│       ├── app.py            # Стартовая инициализация и Gradio Web UI
+│       ├── config.py         # Файл для обработки конфигурации всего приложения
+│       ├── database.py       # Файл с объектами для хранения эмбеддингов 
+│       ├── processor.py      # MTCNN детектор
+│       ├── landmark_model.py # Модель для предсказания ключевых точек лица
+│       ├── processor.py      # Класс который используеи все модели и объекты для реализации пайплайна
+│       └── recognizer.py     # Модель для получения эмбеддингов для выровненных изображений
+```
 
 **Быстрый старт:**
 ```bash
 cd face_detection
+
 python3 -m venv venv
+
 source venv/bin/activate
+
 pip install -r requirements.txt
+
 python -m src.app
 ```
 
 Откройте http://localhost:7860 в браузере.
 
----
-
-Модуль детекции лиц, предсказания ключевых точек и выравнивания для Face Recognition pipeline.
-
-## Установка
-
-```bash
-pip install -r requirements.txt
-```
-
 ## Конфигурация
 
-Создайте `config.json` с путями к моделям:
-
+Для корректной работы приложения нужно его изначально правильно сконфигурировать. Создайте `config.json` с путями к моделям и файлам кэша и фотографий:
 ```json
 {
   "models": {
-    "landmark_model": "hourglass_model.pth",
-    "face_recognition_model": "face_recognition_model.pth"
+    "landmark_model": "path/to/hourglass_model.pth",
+    "face_recognition_model": "path/to/face_recognition_model.pth"
+  },
+  "database": {
+    "embeddings_cache": "embeddings.pkl",
+    "images_directory": "path/to/aligned_faces",
+    "auto_save": true
   },
   "device": "cuda"
 }
 ```
 
-## Быстрый старт
+`models` - хранит соответсвенно пути к весам моделей для предсказания ключевых точек лица и получения эмбеддингов;
 
-### Использование из конфига
+`embeddings_cache` - это поле в котором храниться путь к Pickle файл маппинга, где каждому эмбеддингу сопоставляется его путь из папки с фотографиями - `images_directory`;
 
-```python
-import sys
-sys.path.append('/path/to/Face-Recognition-Project')
+`images_directory` - путь к директории с уже обрезанными и выровненными фотографиями;
 
-from face_detection import FaceProcessor
+`auto_save` - флаг для сохранения эмбеддингов в виде файла автоматически при изменении хранилища.
 
-# Из config.json
-processor = FaceProcessor.from_config('config.json')
+## Примеры использования приложения:
 
-# Или с override
-processor = FaceProcessor.from_config(override={'device': 'cpu'})
-```
-
-### Использование с явным путём
-
-```python
-from face_detection import FaceProcessor
-from PIL import Image
-
-# Инициализация
-processor = FaceProcessor(
-    checkpoint_path='hourglass_model.pth',
-    device='cuda'
-)
-
-# Загрузка изображения
-image = Image.open('photo.jpg')
-
-# Полная обработка: детекция + landmarks + alignment
-result = processor.process(image)
-
-print(f"Найдено лиц: {result.num_faces}")
-
-# Получить выровненные лица для face recognition
-aligned_faces = result.get_aligned_faces()
-```
-
-### Отдельные методы
-
-```python
-# Только детекция лиц
-faces, boxes, confidences = processor.detect_faces(image)
-
-# Только предсказание landmarks
-heatmaps, keypoints = processor.predict_landmarks(face_image)
-
-# Только выравнивание
-aligned, orig_landmarks, aligned_landmarks = processor.align_face(face_image)
-
-# Рисование landmarks
-face_with_landmarks = processor.draw_landmarks(face_image, landmarks)
-```
-
-### Получение лиц для Face Recognition
-
-```python
-# Удобный метод для получения выровненных лиц
-aligned_faces = processor.get_embeddings_ready_faces(image)
-```
-
-## Environment Variables
-
-```bash
-export FACE_DETECTION_LANDMARK_MODEL=/path/to/model.pth
-export FACE_DETECTION_FACE_RECOGNITION_MODEL=/path/to/model.pth
-export FACE_DETECTION_DEVICE=cuda
-```
-
-## Структура проекта
-
-```
-face_detection/
-├── __init__.py
-├── config.json          # Пути к моделям
-├── README.md
-├── requirements.txt
-└── src/
-    ├── __init__.py
-    ├── config.py        # Загрузка конфига
-    ├── processor.py     # FaceProcessor
-    ├── detector.py      # FaceDetector (MTCNN)
-    ├── landmark_model.py # Stacked Hourglass Network
-    └── app.py           # Gradio Web UI
-```
-
-## Технические детали
-
-- **Face Detector**: MTCNN (facenet-pytorch)
-- **Landmark Model**: Stacked Hourglass Network (3 stacks, 4 depth, 128 features)
-- **Output Size**: 128x128 pixels
-- **Landmarks**: 5 points (left eye, right eye, nose, left mouth, right mouth)
-- **Aligned Eye Positions**: (38, 48) и (90, 48)

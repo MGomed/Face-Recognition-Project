@@ -6,8 +6,7 @@
   "database": {
     "embeddings_cache": "embeddings.pkl",
     "images_directory": "path/to/aligned_faces",
-    "auto_save": true,
-    "auto_load": true
+    "auto_save": true
   },
   "device": "cuda"
 }
