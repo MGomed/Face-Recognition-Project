@@ -2,8 +2,11 @@
 
 
 ## Отбор и фильтрация изображений
+Вся работа по фильтрации полного датасета CelebA находиться в файле - `filter_original_dataset.ipynb` - или по [ссылке](https://github.com/MGomed/Face-Recognition-Project/blob/91ed108cf01c19354806548fe4801f21ddf3d985/notebooks/filter_original_dataset.ipynb).
 
 #### Загрузка и анализ данных
+
+В качестве начального датасета для филтрации использовался датасет CelebA с фотографиями знаменитостей: [ссылка GoogleDrive](https://drive.google.com/file/d/1wSYBfJmmazbbj9p3gpe1mA9_gJpCWn1j/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/datasets/magomedkurbandibirov/celeba-simplified/data).
 
 **Загружаемые файлы:**
 - `img_celeba/` - оригинальные изображения (202,599 фото)
@@ -100,6 +103,7 @@
 - **Расстояние между глазами**: в пределах нормального диапазона
 
 ### Формат выходных данных
+В результате получен датасет из ~10000 изображений. Результат можно найти по [ссылке GoogleDrive](https://drive.google.com/file/d/15U8KNm9QtpfuspJltv-ThNaS8lBiHzRx/view?usp=sharing) и [ссылке Kaggle](https://www.kaggle.com/datasets/magomedkurbandibirov/celeba-10k/data)
 
 #### Структура датасета
 ```
@@ -116,4 +120,44 @@ celeba_subset_10k/
 ```
 
 
-## Обучение модели для
+## Обучение модели для предсказания ключевых точек лица.
+
+Стояла задача реализовать с нуля и обучить модель для предсказания ключевых точек лмца человека(глаза, нос и рот). Также на основе полученных координат точек необходимо произвести выравнивание лица относительно горизонта с помощью афинных преобразований.
+
+В ходе работы была реализована нейронная сеть в архитектуре Stacked Hourglass для разметки ключевых точек лица на фото(для изображении с разрешением 128x128).
+
+Результаты inference-а:
+- ROC AUC Score:           0.9964
+- top1 Accuracy @ 3px:     95.18%
+- top1 Accuracy @ 5px:     97.43%
+- top1 Accuracy @ 10px:    98.70%
+
+Веса обученной модели находяться по [ссылка GoogleDrive](https://drive.google.com/file/d/11xe3vJEw6MXrKePLThPhVL3qc5XF0sik/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/models/magomedkurbandibirov/hourglass-10/)
+
+Был сформирован датасет из начальных изображений обрезанных и выровненных с использованием обученной модели.
+
+Подробный ход дейсвий и обучения можно найти в файле - `stacked-hourglass-network.ipynb` - и по [ссылке](https://github.com/MGomed/Face-Recognition-Project/blob/ec01930a327e2ae8457c00f3d807970834eb2a3c/notebooks/stacked-hourglass-network.ipynb)
+
+Датасет с выровненными лицами находиться по [ссылка GoogleDrive](https://drive.google.com/file/d/11Tb6y3DhtbRffxFuy_kXB2KrvYgBcAwp/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/datasets/magomedkurbandibirov/celeba-10k-aligned/data).
+
+## Обучение модели для получения эмбеддингов
+
+Стояла задача обучить две модели машинного обучения: одну с использованием `ArcFace`(предварительно его тоже надо было реализовать) и `CrossEntropy`. Сравнить результаты и добиться точности top1 > 0.7 для обоих вариаций модели.
+
+В ходе работы была реализована модель машинного обучения на базе предобученной на `ImageNet` модели - `efficient_b0` (Было перепробовано много разных `backbone`-ов и эта показала лучшие результаты).
+
+В качестве датасета по началу использовался полученный на предыдущем шаге уменьшанный(~10000 изображений) датасет обрезанных и выровненных лиц, но в ходе обучения не получалось преодалеть порог точности 0.6. Было решено воспользоваться полным датасетом CelebA, предварительно обрезав и выравнив фотографии, как и на предыдущем шаге: [ссылка GoogleDrive](https://drive.google.com/file/d/1HYeHbGbcJhRyadSZGhn8mynBXGzFYh18/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/datasets/magomedkurbandibirov/celeba-aligned-and-cropped/data).
+
+Подробный ход действий и обучения можно найти в файле - `recognizer_network.ipynb` - и по [ссылке](https://github.com/MGomed/Face-Recognition-Project/blob/main/notebooks/recognizer_network.ipynb)
+
+Результаты инференса для модели с `CrossEntropy`:
+- Top-1 Accuracy: 0.7688 (76.88%)
+- Top-5 Accuracy: 0.8693 (86.93%)
+- Top-10 Accuracy: 0.8975 (89.75%)
+
+Результаты инференса для модели с `ArcFace`:
+- Top-1 Accuracy: 0.8794 (87.94%)
+- Top-5 Accuracy: 0.9276 (92.76%)
+- Top-10 Accuracy: 0.9392 (93.92%)
+
+Веса обученной модели можно найти по [ссылка GoogleDrive](https://drive.google.com/file/d/1nZT0vZyEOI2aJ7T9GTcsIz2bicQTv68Q/view?usp=sharing) и [ссылка Kaggle](https://www.kaggle.com/models/magomedkurbandibirov/face-recognition-model)
