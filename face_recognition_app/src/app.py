@@ -140,6 +140,7 @@ def process_image(image: Optional[Union[np.ndarray, Image.Image]]) -> Tuple[
 
 def search_similar_faces(
     image: Optional[Union[np.ndarray, Image.Image]],
+    idx: int,
     top_k: int = 5,
     threshold: float = 0.0
 ) -> Tuple[List[Tuple[np.ndarray, str]], str]:
@@ -173,7 +174,7 @@ def search_similar_faces(
             threshold=threshold if threshold > 0 else None
         )
 
-        face_idx = face_result.index + 1
+        face_idx = idx + 1
         status_parts.append(f"Face {face_idx}: {len(matches)} matches found")
 
         query_array = np.array(face_result.aligned_face)
@@ -205,6 +206,7 @@ def search_for_all_faces(aligned_faces, threshold):
     for idx, face in enumerate(aligned_faces):
         gallery, status = search_similar_faces(
             face[0],
+            idx,
             top_k=5,
             threshold=threshold
         )

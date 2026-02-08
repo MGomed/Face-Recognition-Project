@@ -1,5 +1,33 @@
 # Face Detection Module
 
+
+## Face Detection
+
+│   ├── requirements.txt
+│   ├── README.md           # Более детально описание приложения
+│   └── src/
+│       ├── app.py          # Стартовая инициализация и Gradio Web UI
+│       ├── config.py       # Класс с конфигурацией всего приложения
+│       ├── database.py     # Класс для хранения эмбеддингов 
+│       ├── config.py       # Класс с конфигурацией всего приложения
+│       ├── config.py       # Класс с конфигурацией всего приложения
+│       └── recognizer.py # MTCNN детектор
+
+Модуль детекции лиц находится в папке `face_detection/`. 
+
+**Быстрый старт:**
+```bash
+cd face_detection
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m src.app
+```
+
+Откройте http://localhost:7860 в браузере.
+
+---
+
 Модуль детекции лиц, предсказания ключевых точек и выравнивания для Face Recognition pipeline.
 
 ## Установка
