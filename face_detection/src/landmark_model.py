@@ -45,38 +45,29 @@ class HourglassModule(nn.Module):
         """
         super().__init__()
         self.depth = depth
-        
-        # Верхняя ветка (skip connection)
+
         self.upper_branch = ResidualBlock(num_features, num_features)
-        
-        # Нижняя ветка - downsampling
+
         self.pool = nn.MaxPool2d(2, stride=2)
         self.lower_pre = ResidualBlock(num_features, num_features)
-        
-        # Уменьшаем количество каналов для следующего уровня
+
         next_features = num_features // 2
         self.reduce_channels = nn.Conv2d(num_features, next_features, kernel_size=1)
         
         if depth > 1:
-            # Рекурсивно создаем следующий уровень с уменьшенным количеством каналов
             self.lower_main = HourglassModule(depth - 1, next_features)
         else:
-            # Самый глубокий уровень
             self.lower_main = ResidualBlock(next_features, next_features)
-        
-        # Увеличиваем количество каналов обратно после рекурсии
+
         self.expand_channels = nn.Conv2d(next_features, num_features, kernel_size=1)
         
         self.lower_post = ResidualBlock(num_features, num_features)
-        
-        # Нижняя ветка - upsampling
+
         self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
     
     def forward(self, x):
-        # Верхняя ветка (skip connection)
         up = self.upper_branch(x)
-        
-        # Нижняя ветка
+
         low = self.pool(x)
         low = self.lower_pre(low)
 
@@ -104,33 +95,27 @@ class StackedHourglassNetwork(nn.Module):
         super().__init__()
         self.num_stacks = num_stacks
         self.num_keypoints = num_keypoints
-        
-        # Сохраняем исходное разрешение изображения
+
         self.preprocessing = nn.Sequential(
-            # Первая свертка БЕЗ stride (сохраняем разрешение)
             nn.Conv2d(input_channels, 64, kernel_size=7, stride=1, padding=3),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
-            
-            # Residual blocks для извлечения признаков
+
             ResidualBlock(64, 128),
             ResidualBlock(128, 128),
             ResidualBlock(128, num_features)
         )
-        
-        # Создаем hourglass модули
+
         self.hourglasses = nn.ModuleList([
             HourglassModule(depth=num_blocks, num_features=num_features)
             for _ in range(num_stacks)
         ])
-        
-        # Residual блоки после каждого hourglass
+
         self.post_hg_res = nn.ModuleList([
             ResidualBlock(num_features, num_features)
             for _ in range(num_stacks)
         ])
-        
-        # Головы для генерации heatmaps
+
         self.heatmap_heads = nn.ModuleList([
             nn.Sequential(
                 nn.Conv2d(num_features, num_features, kernel_size=3, padding=1),
@@ -140,14 +125,12 @@ class StackedHourglassNetwork(nn.Module):
             )
             for _ in range(num_stacks)
         ])
-        
-        # Проекция heatmap обратно в пространство признаков
+
         self.heatmap_to_features = nn.ModuleList([
             nn.Conv2d(num_keypoints, num_features, kernel_size=1)
             for _ in range(num_stacks - 1)
         ])
-        
-        # Проекция выхода hourglass для суммирования
+
         self.features_projection = nn.ModuleList([
             nn.Conv2d(num_features, num_features, kernel_size=1)
             for _ in range(num_stacks - 1)
@@ -157,7 +140,6 @@ class StackedHourglassNetwork(nn.Module):
         """
         Args:
             x: входной тензор [batch_size, input_channels, height, width]
-        
         Returns:
             heatmaps: список heatmaps от каждого стека для intermediate supervision
         """
@@ -167,25 +149,18 @@ class StackedHourglassNetwork(nn.Module):
         inter_features = x
         
         for i in range(self.num_stacks):
-            # Пропускаем через hourglass модуль
             hg_out = self.hourglasses[i](inter_features)
-            
-            # Применяем residual блок после hourglass
+
             features = self.post_hg_res[i](hg_out)
-            
-            # Генерируем heatmap
+
             heatmap = self.heatmap_heads[i](features)
             heatmaps.append(heatmap)
-            
-            # Если это не последний стек, подготавливаем вход для следующего
+
             if i < self.num_stacks - 1:
-                # Проецируем heatmap обратно в пространство признаков
                 heatmap_features = self.heatmap_to_features[i](heatmap)
-                
-                # Проецируем выход hourglass
+
                 projected_features = self.features_projection[i](features)
-                
-                # Суммируем
+
                 inter_features = inter_features + projected_features + heatmap_features
         
         return heatmaps
@@ -202,8 +177,7 @@ class LandmarkPredictor:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = torch.device(device)
-        
-        # Создаем модель с параметрами как при обучении
+
         self.model = StackedHourglassNetwork(
             num_stacks=3,
             num_blocks=4,
@@ -211,14 +185,12 @@ class LandmarkPredictor:
             num_keypoints=5,
             input_channels=3,
         ).to(self.device)
-        
-        # Загружаем веса если указан checkpoint
+
         if checkpoint_path is not None:
             self._load_checkpoint(checkpoint_path)
         
         self.model.eval()
-        
-        # Трансформации для предобработки изображения
+
         self.transform = transforms.Compose([
             transforms.Resize((128, 128)),
             transforms.ToTensor(),
@@ -230,10 +202,7 @@ class LandmarkPredictor:
         self.model.load_state_dict(checkpoint['model_state_dict'])
     
     def predict(self, image: Image.Image) -> Tuple[np.ndarray, List[Tuple[int, int]]]:
-        """        
-        Args:
-            image: PIL Image (должно быть уже 128x128 после детектора)
-        
+        """
         Returns:
             heatmaps: numpy array [num_keypoints, H, W]
             keypoints: список координат [(x, y), ...]
@@ -254,13 +223,6 @@ class LandmarkPredictor:
         return heatmap_np, keypoints
     
     def _extract_keypoints(self, heatmaps: np.ndarray) -> List[Tuple[int, int]]:
-        """        
-        Args:
-            heatmaps: [num_keypoints, H, W]
-        
-        Returns:
-            список координат (x, y)
-        """
         num_keypoints = heatmaps.shape[0]
         keypoints = []
         
@@ -316,16 +278,14 @@ class LandmarkPredictor:
         dY = right_eye[1] - left_eye[1]
         dX = right_eye[0] - left_eye[0]
         angle = np.degrees(np.arctan2(dY, dX))
-        
-        # Желаемые позиции ключевых точек в выровненном изображении
-        # Стандартные позиции для выровненного лица 128x128
+
         desired_left_eye = ALIGNED_LEFT_EYE
         desired_right_eye = ALIGNED_RIGHT_EYE
 
         desired_dist = desired_right_eye[0] - desired_left_eye[0]
         actual_dist = np.linalg.norm(right_eye - left_eye)
-        
-        if actual_dist < 1e-6:  # Защита от деления на ноль
+
+        if actual_dist < 1e-6:
             scale = 1.0
         else:
             scale = desired_dist / actual_dist
@@ -345,7 +305,7 @@ class LandmarkPredictor:
         tY = desired_eyes_center[1] - eyes_center[1]
         M[0, 2] += tX
         M[1, 2] += tY
-        
+
         return M
     
     def align_face(self, image: Image.Image, keypoints: List[Tuple[int, int]], output_size: Tuple[int, int] = (128, 128)) -> Image.Image:

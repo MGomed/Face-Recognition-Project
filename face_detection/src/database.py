@@ -1,13 +1,3 @@
-"""
-Face Database - Storage and search for face embeddings.
-
-Supports:
-    - Loading embeddings from cache file
-    - Building embeddings from directory of images
-    - Similarity search using cosine similarity
-    - Auto-save and auto-rebuild
-"""
-
 from typing import Dict, List, Optional, Tuple, Union, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,29 +31,26 @@ class FaceDatabase:
         self,
         cache_path: Optional[str] = None,
         images_directory: Optional[str] = None,
-        auto_save: bool = True,
-        auto_load: bool = True
+        auto_save: bool = True
     ):
         """
         Args:
             cache_path: Путь к файлу кеша эмбеддингов (.pkl)
             images_directory: Каталог с фото лицами
             auto_save: Автоматическое сохранение после изменений
-            auto_load: Автоматическая загрузка при инициализации (из кеша или перестроение из каталога)
         """
         self.cache_path = cache_path
         self.images_directory = images_directory
         self.auto_save = auto_save
 
         self._embeddings: Dict[str, np.ndarray] = {}
-        self._directory_hash: Optional[str] = None
 
         self._normalized_cache: Optional[np.ndarray] = None
         self._paths_cache: Optional[List[str]] = None
 
         self._embedding_fn: Optional[Callable] = None
  
-        if auto_load:
+        if self.cache_path:
             self._auto_load()
     
     def set_embedding_function(self, fn: Callable):
@@ -77,17 +64,12 @@ class FaceDatabase:
                 self.load_cache()
                 cache_loaded = True
 
-                if self.images_directory and os.path.isdir(self.images_directory):
-                    current_hash = self._compute_directory_hash()
-                    if current_hash != self._directory_hash:
-                        print("Directory changed since cache was created. Rebuild needed.")
-                        cache_loaded = False
             except Exception as e:
-                print(f"Error loading cache: {e}")
+                print(f"Ошибка загрузки кеша: {e}")
                 cache_loaded = False
 
         if not cache_loaded and self.images_directory:
-            print(f"Cache not available. Will rebuild from {self.images_directory} when ready.")
+            print(f"Кеш не доступен. Будет перестроен из {self.images_directory} когда будет готов.")
     
     @property
     def size(self) -> int:
@@ -105,27 +87,7 @@ class FaceDatabase:
         if not self.images_directory or not os.path.isdir(self.images_directory):
             return False
         
-        if self.size == 0:
-            return True
-        
-        current_hash = self._compute_directory_hash()
-
-        return current_hash != self._directory_hash
-    
-    def _compute_directory_hash(self) -> str:
-        if not self.images_directory:
-            return ""
-        
-        files_info = []
-        for ext in IMAGE_EXTENSIONS:
-            for path in glob(os.path.join(self.images_directory, f"*{ext}")):
-                stat = os.stat(path)
-                files_info.append(f"{path}:{stat.st_size}:{stat.st_mtime}")
-        
-        files_info.sort()
-        content = "\n".join(files_info)
-
-        return hashlib.md5(content.encode()).hexdigest()
+        return self.size == 0
     
     def get_image_files(self) -> List[str]:
         if not self.images_directory or not os.path.isdir(self.images_directory):
@@ -160,8 +122,7 @@ class FaceDatabase:
         
         if not self.images_directory or not os.path.isdir(self.images_directory):
             raise ValueError(f"Images directory not found: {self.images_directory}")
-        
-        # Get image files
+
         image_files = self.get_image_files()
         if not image_files:
             print(f"No images found in {self.images_directory}")
@@ -184,8 +145,6 @@ class FaceDatabase:
                 
             except Exception as e:
                 print(f"Error processing {image_path}: {e}")
-
-        self._directory_hash = self._compute_directory_hash()
 
         if self.cache_path:
             self.save_cache()
@@ -331,7 +290,6 @@ class FaceDatabase:
         self._normalized_cache = np.array(embeddings_list, dtype=np.float32)
     
     def _invalidate_cache(self):
-        """Invalidate search cache."""
         self._normalized_cache = None
         self._paths_cache = None
     
@@ -355,24 +313,21 @@ class FaceDatabase:
     def load_cache(self, path: Optional[str] = None):
         load_path = path or self.cache_path
         if load_path is None:
-            raise ValueError("No cache path specified")
+            raise ValueError("Нет файла кеша с эмбеддингами")
         
         if not os.path.exists(load_path):
-            raise FileNotFoundError(f"Cache file not found: {load_path}")
+            raise FileNotFoundError(f"Файл кеша с эмбеддингами не найден: {load_path}")
         
         with open(load_path, 'rb') as f:
             data = pickle.load(f)
         
         self._embeddings = data.get('embeddings', {})
-        self._directory_hash = data.get('directory_hash')
 
         stored_dir = data.get('images_directory')
         if stored_dir and not self.images_directory:
             self.images_directory = stored_dir
         
         self._invalidate_cache()
-        
-        print(f"Loaded {self.size} embeddings from {load_path}")
     
     def clear(self):
         self._embeddings.clear()

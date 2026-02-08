@@ -5,20 +5,19 @@ from PIL import Image, ImageDraw
 from facenet_pytorch import MTCNN
 import torch
 
+TARGET_SIZE = (128, 128)
+MARGIN = 20
 
 class FaceDetector:
-    def __init__(self, output_size: int = 128, margin: int = 20, device: Optional[str] = None):
-        self.output_size = output_size
-        self.margin = margin
-
+    def __init__(self, device: Optional[str] = None):
         if device is None:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = torch.device(device)
 
         self.mtcnn = MTCNN(
-            image_size=output_size,
-            margin=margin,
+            image_size=TARGET_SIZE,
+            margin=MARGIN,
             keep_all=True,
             device=self.device,
             post_process=False
@@ -53,14 +52,14 @@ class FaceDetector:
 
             x1, y1, x2, y2 = [int(b) for b in box]
 
-            x1 = max(0, x1 - self.margin)
-            y1 = max(0, y1 - self.margin)
-            x2 = min(image.width, x2 + self.margin)
-            y2 = min(image.height, y2 + self.margin)
+            x1 = max(0, x1 - MARGIN)
+            y1 = max(0, y1 - MARGIN)
+            x2 = min(image.width, x2 + MARGIN)
+            y2 = min(image.height, y2 + MARGIN)
 
             face_crop = image.crop((x1, y1, x2, y2))
 
-            face_crop = face_crop.resize((self.output_size, self.output_size), Image.LANCZOS)
+            face_crop = face_crop.resize(TARGET_SIZE, Image.LANCZOS)
 
             cropped_faces.append(face_crop)
             valid_boxes.append([x1, y1, x2, y2])

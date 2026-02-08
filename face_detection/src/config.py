@@ -13,7 +13,6 @@ class Config:
     embeddings_cache: Optional[str] = None
     images_directory: Optional[str] = None
     auto_save: bool = True
-    auto_load: bool = True
 
     device: Optional[str] = None
 
@@ -67,7 +66,6 @@ class Config:
             embeddings_cache=database.get('embeddings_cache'),
             images_directory=database.get('images_directory'),
             auto_save=database.get('auto_save', True),
-            auto_load=database.get('auto_load', True),
             device=data.get('device'),
             _base_dir=base_dir
         )
@@ -82,7 +80,6 @@ class Config:
                 'embeddings_cache': self.embeddings_cache,
                 'images_directory': self.images_directory,
                 'auto_save': self.auto_save,
-                'auto_load': self.auto_load,
             },
             'device': self.device,
         }

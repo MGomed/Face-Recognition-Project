@@ -93,12 +93,9 @@ class FaceProcessor:
         recognition_checkpoint_path: Optional[str] = None,
         cache_path: Optional[str] = None,
         images_directory: Optional[str] = None,
-        output_size: int = 128,
-        margin: int = 20,
         device: Optional[str] = None,
         confidence_threshold: float = 0.9,
-        auto_save: bool = True,
-        auto_load: bool = True
+        auto_save: bool = True
     ):
         """        
         Args:
@@ -106,15 +103,10 @@ class FaceProcessor:
             recognition_checkpoint_path: Путь к весам модели для распознавания лиц
             cache_path: Путь к файлу кеша эмбеддингов (.pkl)
             images_directory: Каталог с выровненными фото лицами
-            output_size: Размер выходного лица (по умолчанию: 128)
-            margin: Отступ вокруг обнаруженных лиц (по умолчанию: 20)
             device: Устройство ('cuda' или 'cpu')
             confidence_threshold: Минимальное сходство для обнаружения (по умолчанию: 0.9)
             auto_save: Автоматическое сохранение базы данных после изменений
-            auto_load: Автоматическая загрузка базы данных при запуске
         """
-        self.output_size = output_size
-        self.margin = margin
         self.confidence_threshold = confidence_threshold
 
         if device is None:
@@ -122,11 +114,7 @@ class FaceProcessor:
         else:
             self.device = device
 
-        self._detector = FaceDetector(
-            output_size=output_size,
-            margin=margin,
-            device=self.device
-        )
+        self._detector = FaceDetector(device=self.device)
 
         self._landmark_predictor: Optional[LandmarkPredictor] = None
         self._has_landmarks = False
@@ -138,7 +126,7 @@ class FaceProcessor:
             )
             self._has_landmarks = True
         elif landmark_checkpoint_path:
-            print(f"Warning: Landmark model not found: {landmark_checkpoint_path}")
+            print(f"Warning: Модель для предсказания ключевых точек не найдена: {landmark_checkpoint_path}")
 
         self._recognition_model: Optional[FaceRecognitionModel] = None
         self._has_recognition = False
@@ -147,7 +135,7 @@ class FaceProcessor:
             self._load_recognition_model(recognition_checkpoint_path)
             self._has_recognition = True
         elif recognition_checkpoint_path:
-            print(f"Warning: Recognition model not found: {recognition_checkpoint_path}")
+            print(f"Warning: Модель для распознавания лиц не найдена: {recognition_checkpoint_path}")
 
         self._database: Optional[FaceDatabase] = None
         
@@ -155,18 +143,16 @@ class FaceProcessor:
             self._database = FaceDatabase(
                 cache_path=cache_path,
                 images_directory=images_directory,
-                auto_save=auto_save,
-                auto_load=auto_load
+                auto_save=auto_save
             )
 
             if self._has_recognition:
                 self._database.set_embedding_function(self._compute_embedding_from_path)
 
-            if auto_load and self._has_recognition and self._database.needs_rebuild():
-                print("Building embeddings database from images directory...")
+            if self._database.needs_rebuild() and self._has_recognition:
+                print("Построение базы эмбеддингов из каталога изображений...")
                 self._database.build_from_directory()
 
-        print(f"FaceProcessor initialized on {self.device}")
         print(f"  - Face detection: enabled")
         print(f"  - Landmarks: {'enabled' if self._has_landmarks else 'disabled'}")
         print(f"  - Recognition: {'enabled' if self._has_recognition else 'disabled'}")
@@ -200,8 +186,6 @@ class FaceProcessor:
         self._recognition_model.load_state_dict(state_dict)
         self._recognition_model.to(self.device)
         self._recognition_model.eval()
-        
-        print(f"Loaded recognition model from {checkpoint_path}")
     
     @classmethod
     def from_config(
@@ -217,8 +201,7 @@ class FaceProcessor:
             cache_path=config.get_embeddings_cache_path(),
             images_directory=config.get_images_directory(),
             device=config.device,
-            auto_save=config.auto_save,
-            auto_load=config.auto_load
+            auto_save=config.auto_save
         )
     
     @property
@@ -315,14 +298,12 @@ class FaceProcessor:
     def process(
         self, 
         image: Union[Image.Image, np.ndarray],
-        align_faces: bool = True,
-        draw_landmarks: bool = True
+        align_faces: bool = True
     ) -> ProcessingResult:
         """
         Args:
             image: Входное изображение (PIL Image или numpy array)
             align_faces: Нужно ли выравнивать лица (требуется координаты ключевых точек)
-            draw_landmarks: Нужно ли рисовать точки на изображении
         Returns:
             ProcessingResult с всеми обнаруженными лицами и их информацией
         """
@@ -407,7 +388,7 @@ class FaceProcessor:
     ) -> np.ndarray:
         """        
         Args:
-            face_image: Фото лица (должно быть выровнено 128x128)
+            face_image: Фото лица
             
         Returns:
             Вектор эмбеддинга (нормализованный)
@@ -421,8 +402,7 @@ class FaceProcessor:
         pil_image = self._to_pil(face_image)
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')
-        
-        # Transform and get embedding
+
         tensor = self._transform(pil_image).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
