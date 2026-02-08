@@ -73,4 +73,10 @@ python -m src.app
 
 ## Примеры использования приложения:
 
-![image](https://github.com/MGomed/Face-Recognition-Project/blob/main/examples/Jared_Leto_Result.gif)
+![gif](https://github.com/MGomed/Face-Recognition-Project/blob/main/examples/Jared_Leto_Result.gif)
+
+![gif](https://github.com/MGomed/Face-Recognition-Project/blob/main/examples/Cillian_Result.gif)
+
+Менее удачные результаты поиска схожих лиц
+
+![gif](https://github.com/MGomed/Face-Recognition-Project/blob/main/examples/recognition_test_1.gif)
